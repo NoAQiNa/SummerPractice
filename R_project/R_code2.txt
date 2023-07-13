@@ -1,0 +1,188 @@
+# 加载必要的库
+library(readr)
+library(ggplot2)
+library(reshape2)
+library(heatmaply)
+library(factoextra)
+library(rgl)
+
+
+
+# 读取数据
+exp_data <- read_delim("data/data2_exp.txt", "\t")
+diff_data <- read_delim("data/data2_diff.txt")
+
+# 1）相关性分析与热图展示
+# 假设基因名在第一列，将其排除后进行相关性分析
+exp_data_numeric <- exp_data[,-1]
+exp_cor <- cor(exp_data_numeric)
+
+# 使用heatmaply包绘制相关性热图
+heatmaply(exp_cor, 
+          title = "基因表达谱的相关性分析热图",
+          xlab = "样本", 
+          ylab = "样本",
+          notecol = "black")
+
+# 2）主成分分析 (PCA) 及可视化
+# 使用prcomp函数进行主成分分析
+exp_pca <- prcomp(exp_data_numeric, scale. = TRUE)
+
+# 使用factoextra包的fviz_pca_ind函数绘制二维PCA图
+fviz_pca_ind(exp_pca, 
+             geom.ind = "point", 
+             pointshape = 21, 
+             pointsize = 2, 
+             fill.ind = "#FFAA66", 
+             col.ind = "cos2", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE,
+             title = "基因表达谱的主成分分析",
+             xlab = "PC1",
+             ylab = "PC2")
+
+# 使用rgl包的plot3d函数绘制三维PCA图
+# 注意，这将在一个新的交互式窗口中打开3D图
+plot3d(exp_pca$x, col=rainbow(nrow(exp_data_numeric)), size=0.5)
+title3d("3D PCA", "PC1", "PC2", "PC3")
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+# 计算Fold Change
+diff_data$FC <- log2((diff_data$value_2+ 1) / (diff_data$value_1 + 1))  # 防止分母为0
+
+# 显著上调
+diff_genes_up <- diff_data[diff_data$FC > log2(2) & diff_data$q_value < 0.05, ]  
+diff_genes_up_CE <- diff_genes_up[diff_genes_up$sample_1 == "C" & diff_genes_up$sample_2 == "E", ]
+
+# 显著下调
+diff_genes_down <- diff_data[diff_data$FC < -log2(2) & diff_data$q_value < 0.05, ]
+diff_genes_down_CE <- diff_genes_down[diff_genes_down$sample_1 == "C" & diff_genes_down$sample_2 == "E", ]
+
+# 非显著差异基因
+diff_genes_non_significant <- diff_data[!(diff_data$ID %in% c(diff_genes_up$ID, diff_genes_down$ID)), ]
+diff_genes_non_significant_CE <- diff_genes_non_significant[diff_genes_non_significant$sample_1 == "C" & diff_genes_non_significant$sample_2 == "E", ]
+
+# 检查数据中是否存在缺失值
+sum(is.na(diff_data$FC))  # 检查FC列中的缺失值的数量
+sum(is.na(diff_data$q_value))  # 检查q_value列中的缺失值的数量
+
+# 如果存在缺失值，可以用以下代码进行处理
+diff_data <- diff_data[!is.na(diff_data$FC) & !is.na(diff_data$q_value), ]  # 移除包含缺失值的行
+
+# 绘制散点图
+p<-ggplot() +
+  geom_point(data = diff_genes_up_CE, aes(x = value_1, y = value_2, color = "显著上调")) +
+  geom_point(data = diff_genes_down_CE, aes(x = value_1, y = value_2, color = "显著下调")) +
+  geom_point(data = diff_genes_non_significant_CE, aes(x = value_1, y = value_2, color = "非显著差异基因")) +
+  scale_color_manual(values = c("显著上调" = "red", "显著下调" = "blue", "非显著差异基因" = "black")) +
+  theme_minimal() +
+  labs(x = "Sample C", y = "Sample E", color = "表达类型")
+# 然后使用ggsave保存
+ggsave("scatter_plot.jpg", p, dpi = 300, width = 6, height = 4)
+
+# 绘制火山图
+p<-ggplot(diff_data, aes(x = FC, y = -log10(q_value))) +
+  geom_point(data = diff_genes_up_CE, aes(color = "显著上调")) +
+  geom_point(data = diff_genes_down_CE, aes(color = "显著下调")) +
+  geom_point(data=diff_genes_non_significant_CE, aes(color = "非显著差异基因")) +
+  scale_color_manual(values = c("显著上调" = "red", "显著下调" = "blue", "非显著差异基因" = "black")) +
+  theme_minimal() +
+  labs(x = "log2(Fold Change)", y = "-log10(q-value)", color = "表达类型")
+# 然后使用ggsave保存
+ggsave("volcano_plot.jpg", p, dpi = 300, width = 6, height = 4)
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+# 比较样本对 CE，CF，EF
+samples <- c("CE", "CF", "EF")
+diff_genes_up_counts <- c()
+diff_genes_down_counts <- c()
+
+for (sample_pair in samples) {
+  sample_1 <- substring(sample_pair, 1, 1)
+  sample_2 <- substring(sample_pair, 2, 2)
+  
+  # 显著上调基因
+  diff_genes_up <- diff_data[diff_data$FC > log2(2) & diff_data$q_value < 0.05 & 
+                             diff_data$sample_1 == sample_1 & diff_data$sample_2 == sample_2, ]
+  diff_genes_up_counts <- c(diff_genes_up_counts, nrow(diff_genes_up))
+  
+  # 显著下调基因
+  diff_genes_down <- diff_data[diff_data$FC < -log2(2) & diff_data$q_value < 0.05 &
+                               diff_data$sample_1 == sample_1 & diff_data$sample_2 == sample_2, ]
+  diff_genes_down_counts <- c(diff_genes_down_counts, nrow(diff_genes_down))
+
+ # 非显著差异基因
+diff_genes_non_significant <- diff_data[ !(diff_data$ID %in% c(diff_genes_up$ID, diff_genes_down$ID))
+			& diff_data$sample_1 == sample_1 & diff_data$sample_2 == sample_2, ]
+diff_genes_non_significant_counts <- c(diff_genes_non_significant_counts, nrow(diff_genes_non_significant))
+}
+# 创建数据框
+barplot_data <- data.frame(Sample_Pairs = samples,
+                           Upregulated = diff_genes_up_counts,
+                           Downregulated = diff_genes_down_counts，
+  	           Non_Significant = diff_genes_non_significant_counts,)
+
+# 将数据转换为长格式以便绘制
+barplot_data_long <- tidyr::gather(barplot_data, Regulation, Count, -Sample_Pairs)
+
+# 绘制柱状图
+ggplot(barplot_data_long, aes(x = Sample_Pairs, y = Count, fill = Regulation)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_minimal() +
+  labs(x = "Sample Pairs", y = "Number of Differentially Expressed Genes", fill = "Regulation")
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+if (!requireNamespace("BiocManager", quietly = TRUE))
+ install.packages("BiocManager")
+BiocManager::install("clusterProfiler")
+BiocManager::install("org.Hs.eg.db")
+
+library(clusterProfiler)
+library(org.Hs.eg.db)
+
+# GO富集分析
+ego <- enrichGO(gene         = diff_genes_up_CE$ID,  # 这里换成你的上调基因列表
+                OrgDb        = org.Hs.eg.db,
+                keyType      = "SYMBOL",
+                pAdjustMethod = "BH",
+                pvalueCutoff  = 0.05,
+                qvalueCutoff  = 0.05)
+
+# 打印富集分析的结果
+print(ego)
+
+library(org.Hs.eg.db)
+
+# 假设你的基因符号在变量gene_symbols中
+gene_symbols <- c("ABCA2", "ABCB4", "SNORA27")
+
+# 使用select函数将基因符号转换为Entrez ID
+entrez_ids <- select(org.Hs.eg.db, keys=gene_symbols, columns="ENTREZID", keytype="SYMBOL")
+
+# 确保没有NA值
+entrez_ids <- entrez_ids[!is.na(entrez_ids$ENTREZID), ]
+
+# 现在你可以使用entrez_ids进行富集分析
+ekk <- enrichKEGG(gene         = entrez_ids$ENTREZID,
+                  organism     = 'hsa',
+                  pAdjustMethod = "BH",
+                  pvalueCutoff  = 0.05,
+                  qvalueCutoff  = 0.05)
+
+# 打印富集分析的结果
+print(ekk)
+
+
+# 使用dotplot函数创建一个点图
+dotplot(ego) + theme_minimal()
+
+# 使用barplot函数创建一个柱状图
+barplot(ego) + theme_minimal()
+
+# 你也可以使用cnetplot函数来创建一个网络图
+cnetplot(ego, foldChange = diff_genes_up_CE$FC)

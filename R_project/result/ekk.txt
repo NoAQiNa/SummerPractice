@@ -1,0 +1,22 @@
+# over-representation test
+#
+#...@organism 	 hsa 
+#...@ontology 	 KEGG 
+#...@keytype 	 kegg 
+#...@gene 	 chr [1:3] "20" "5244" "619499"
+#...pvalues adjusted by 'BH' with cutoff <0.05 
+#...3 enriched terms found
+'data.frame':	3 obs. of  9 variables:
+ $ ID         : chr  "hsa02010" "hsa04976" "hsa04142"
+ $ Description: chr  "ABC transporters" "Bile secretion" "Lysosome"
+ $ GeneRatio  : chr  "2/2" "1/2" "1/2"
+ $ BgRatio    : chr  "45/8577" "89/8577" "132/8577"
+ $ pvalue     : num  2.69e-05 2.06e-02 3.05e-02
+ $ p.adjust   : num  8.08e-05 3.05e-02 3.05e-02
+ $ qvalue     : logi  NA NA NA
+ $ geneID     : chr  "20/5244" "5244" "20"
+ $ Count      : int  2 1 1
+#...Citation
+ T Wu, E Hu, S Xu, M Chen, P Guo, Z Dai, T Feng, L Zhou, W Tang, L Zhan, X Fu, S Liu, X Bo, and G Yu.
+ clusterProfiler 4.0: A universal enrichment tool for interpreting omics data.
+ The Innovation. 2021, 2(3):100141 
